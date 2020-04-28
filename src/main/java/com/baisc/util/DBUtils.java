@@ -1,7 +1,7 @@
 package com.baisc.util;
 
-import com.sun.org.slf4j.internal.Logger;
-import com.sun.org.slf4j.internal.LoggerFactory;
+
+import lombok.extern.slf4j.Slf4j;
 
 import java.sql.*;
 
@@ -15,8 +15,9 @@ import java.sql.*;
  * 4.执行sql处理结果集，如果有参数就设置参数
  * 5.关闭结果集，关闭会话，关闭资源
  */
+@Slf4j
 public class DBUtils {
-    private static Logger log=LoggerFactory.getLogger(DBUtils.class);
+
 
     /**
      * 得到连接
@@ -29,6 +30,7 @@ public class DBUtils {
     public static Connection getConnection(String driver,String url,String username,String password){
 
         try{
+
             Class.forName(driver);
             Connection connection8= DriverManager.getConnection(url,username,password);
             return connection8;

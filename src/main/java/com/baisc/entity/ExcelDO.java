@@ -1,6 +1,6 @@
 package com.baisc.entity;
 
-import com.baisc.annonate.ExcelOrder;
+import com.baisc.annonate.Excel;
 import lombok.Data;
 
 /**
@@ -9,18 +9,18 @@ import lombok.Data;
  */
 @Data
 public class ExcelDO {
-    @ExcelOrder(order = 1)
+    @Excel(order = 1)
     private String country;
-    @ExcelOrder(order = 2)
+    @Excel(order = 2)
     private String city;
-    @ExcelOrder(order = 3)
+    @Excel(order = 3)
     private String countryEng;
-    @ExcelOrder(order = 4)
+    @Excel(order = 4)
     private String province;
-    @ExcelOrder(order = 5)
+    @Excel(order = 5)
     private String author;
-    @ExcelOrder(order = 6)
+    @Excel(order = 6)
     private String lon;
-    @ExcelOrder(order = 7)
+    @Excel(order = 7)
     private String lat;
 }

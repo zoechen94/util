@@ -1,9 +1,8 @@
-package com.baisc.util;
+package com.andlinks.basic.utils;
 
-import com.baisc.annonate.ExcelOrder;
-import com.baisc.entity.ExcelDO;
-import com.sun.org.slf4j.internal.Logger;
-import com.sun.org.slf4j.internal.LoggerFactory;
+import com.baisc.annonate.Excel;
+import com.baisc.util.StrUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hssf.usermodel.*;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
@@ -11,10 +10,9 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.text.DecimalFormat;
@@ -24,18 +22,25 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * @author 橙子
- * @date 2020/1/12 1:06 上午
- * 使用poi工具包操作office
- * 注意读取poi都是从0开始无论是列还是行还是表
- */
-public class PoiUtils {
-    private static Logger log = LoggerFactory.getLogger(PoiUtils.class);
-    private final static String EXCEL2003 = ".xls";//2003
-    private final static String EXCEL2007 = ".xlsx";//2007+
-    private final static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+ * @author yaLan
+ * @date 2020/02/11 16:34
+ * excel导出
+ **/
+@Slf4j
+public class ExcelUtils<T> {
+    public final static String EXCEL2003 = ".xls";//2003
+    public final static String EXCEL2007 = ".xlsx";//2007+
+    public final static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
-    //添加
+    /**
+     * ImportExcel识别成对象
+     * @param file   文件
+     * @param clazz  识别对象类
+     * @param headers  headers用来放类的属性，按照注解上的升序来
+     * @param <T>
+     * @return
+     * @throws Exception
+     */
     public static <T> List<T> importExcel(File file, Class<T> clazz, String[] headers) throws Exception {
         List<T> list = null;
         //创建工作部
@@ -58,7 +63,7 @@ public class PoiUtils {
         sheet = wb.getSheetAt(0);//跳出循环这里指定使用工作簿中的几个sheet表
         for (int j = sheet.getFirstRowNum(); j <= sheet.getLastRowNum(); j++) {
             row = sheet.getRow(j);
-            if (row == null || row.getFirstCellNum() == j) { //j是从0开始的，也就是第一行，j在循环当中只可能出现一次为0，也即是当第一行标题的时候不录入
+            if (row == null || row.getFirstCellNum() == j) {   //j是从0开始的，当第一行标题的时候不录入
                 continue;
             }
             //遍历所有的列
@@ -68,9 +73,7 @@ public class PoiUtils {
                 String mName = "set".concat(StrUtils.firstCharUpper(headers[k]));
                 Method m = t.getClass().getDeclaredMethod(mName, String.class);
                 m.invoke(t, getCellValue(cell));
-//                Field f = t.getClass().getDeclaredField(headers[k]);
-//                f.setAccessible(true);
-//                f.set(t, getCellValue(cell));
+
             }
 
 //            cell=
@@ -83,7 +86,6 @@ public class PoiUtils {
         return list;
     }
 
-
     /**
      * 根据list生成对应的excel文档
      * 第一步：写入表头
@@ -91,14 +93,15 @@ public class PoiUtils {
      * 第三步：利用反射，得到当前行数据的所有fields，判断是否有注解ExcelDO，组成一个Field数组，利用java8的排序，根据bean上每个属性的值排序
      * 第四步：此时这个数组里的Field顺序对应excel生成的字段顺序，直接遍历field取值赋给cell里就ok
      * 第五步：利用流生成excel工作簿
-     * @param list
-     * @param path
-     * @param header
+     *
+     * @param list    对象数组
+     * @param generateName  生成文件名
+     * @param header      第一行的列名，按注解升序来
      * @param <T>
      * @throws IllegalAccessException
      * @throws IOException
      */
-    public static <T> void list2excel(List<T> list, String path, String[] header) throws IllegalAccessException, IOException {
+    public static <T> void list2excel(List<T> list, String generateName, String[] header, HttpServletRequest request,  HttpServletResponse response) throws IllegalAccessException, IOException {
         HSSFWorkbook workbook = new HSSFWorkbook();
         HSSFSheet sheet = workbook.createSheet();
         HSSFRow row = sheet.createRow(0);//创建第一行
@@ -109,18 +112,18 @@ public class PoiUtils {
             cell.setCellValue(header[i]);
         }
         //步骤2：写入数据
-        for (int i = 1; i < list.size(); i++) {
-            row = sheet.createRow(i);
+        for (int i = 0; i < list.size(); i++) {
+            row = sheet.createRow(i + 1);
             //步骤3：取得当前下标（行）的fields并根据注解里的顺序排序Field数组
             T t = list.get(i);
             Field[] f = t.getClass().getDeclaredFields();
             List<Field> withExcel = new ArrayList<>();
             for (int k = 0; k < f.length; k++) {
-                if (null != f[k].getAnnotation(ExcelOrder.class)) {
+                if (null != f[k].getAnnotation(Excel.class)) {
                     withExcel.add(f[k]);
                 }
             }
-            withExcel.sort(Comparator.comparingInt(o -> o.getAnnotation(ExcelOrder.class).order()));//根据excel实体的注解顺序排序
+            withExcel.sort(Comparator.comparingInt(o -> o.getAnnotation(Excel.class).order()));//根据excel实体的注解顺序排序
             //步骤5：遍历排序后的Fields数组，利用反射取出属性值赋给cell
             for (int k = 0; k < withExcel.size(); k++) {
                 Field orderField = withExcel.get(k);
@@ -131,12 +134,27 @@ public class PoiUtils {
             }
         }
         //步骤6：生成excel工作簿
+    //本地生成
+//        File file = new File(path);
+//        file.createNewFile();
+//        OutputStream out = new FileOutputStream(file);
+//        workbook.write(out);
+//        out.close();
 
-        File file = new File(path);
-        file.createNewFile();
-        FileOutputStream out = new FileOutputStream(file);
-        workbook.write(out);
-        out.close();
+        //后台接口生成
+        try {
+            generateName = encodeChineseDownloadFileName(request, generateName);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        response.setHeader("Content-disposition", generateName);
+        response.setContentType("application/vnd.ms-excel");
+        response.setHeader("Content-disposition", "attachment;filename=" + generateName);
+        response.setHeader("Pragma", "No-cache");
+        OutputStream ouputStream = response.getOutputStream();
+        workbook.write(ouputStream);
+        ouputStream.flush();
+        ouputStream.close();
     }
 
 
@@ -146,7 +164,7 @@ public class PoiUtils {
      * @param cell
      * @return
      */
-    public static Object getCellValue(Cell cell) {
+    public static String getCellValue(Cell cell) {
         //用String接收所有返回的值
         String value = null;
         DecimalFormat df = new DecimalFormat("0");  //格式化number String字符
@@ -223,9 +241,29 @@ public class PoiUtils {
         return wb;
     }
 
-    public static void main(String[] args) throws Exception {
-        File file = new File("/Users/yalan/Desktop/exercise/mingdan.xlsx");
-        List<ExcelDO> list = importExcel(file, ExcelDO.class, new String[]{"country", "city", "countryEng", "province", "author"});
-        list2excel(list, "/Users/yalan/Desktop/exercise/generator.xlsx", new String[]{"国家", "城市", "城市（英文）", "省、州", "负责人", "经度", "纬度"});
+    /**
+     * 生成中文
+     * @param request
+     * @param pFileName
+     * @return
+     * @throws Exception
+     */
+    public static String encodeChineseDownloadFileName(HttpServletRequest request, String pFileName) throws Exception {
+        String filename = null;
+        String agent = request.getHeader("USER-AGENT");
+        if (null != agent) {
+            if (-1 != agent.indexOf("Firefox")) {//Firefox
+                filename = "=?UTF-8?B?" + (new String(org.apache.commons.codec.binary.Base64.encodeBase64(pFileName.getBytes("UTF-8")))) + "?=";
+            } else if (-1 != agent.indexOf("Chrome")) {//Chrome
+                filename = new String(pFileName.getBytes(), "ISO8859-1");
+            } else {//IE7+
+                filename = java.net.URLEncoder.encode(pFileName, "UTF-8");
+                filename = filename.replace("+", "%20");
+            }
+        } else {
+            filename = pFileName;
+        }
+        return filename;
     }
+
 }
